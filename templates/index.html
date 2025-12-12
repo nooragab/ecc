@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html dir="ltr" lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ECC Cryptography - Advanced Simulation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Poppins:wght@300;500;600;700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+
+<body>
+  <!-- Enhanced animated background with toggle -->
+  <canvas id="bg-canvas"></canvas>
+  <button id="bg-toggle" class="bg-toggle" title="Toggle background animation">✦</button>
+
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="logo">ECC</div>
+    <div class="nav-menu">
+      <a href="#" onclick="showPage('home')" class="nav-link active">HOME</a>
+      <a href="#" onclick="showPage('learn')" class="nav-link">LEARN ECC</a>
+      <a href="#" onclick="showPage('keygen')" class="nav-link">KEY GENERATION</a>
+      <a href="#" onclick="showPage('encrypt')" class="nav-link">ENCRYPTION</a>
+      <a href="#" onclick="showPage('decrypt')" class="nav-link">DECRYPTION</a>
+      <a href="#" onclick="showPage('team')" class="nav-link">TEAM</a>
+    </div>
+  </nav>
+
+  <!-- HOME PAGE -->
+  <section id="home" class="page active">
+    <div class="hero-container">
+      <div class="hero-content">
+        <h1 class="hero-title">Elliptic Curve<br>Cryptography</h1>
+        <p class="hero-subtitle">Experience secure encryption with advanced mathematical visualization</p>
+        <button class="btn-hero" onclick="showPage('learn')">Start</button>
+      </div>
+      <div class="hero-canvas-wrapper" id="hero-3d-container">
+        <!-- Three.js will inject canvas here -->
+      </div>
+    </div>
+  </section>
+
+  <!-- LEARNING PAGE -->
+  <section id="learn" class="page">
+    <div class="container">
+      <h1 class="section-title">What is ECC?</h1>
+
+      <!-- Video Section -->
+      <div class="workflow-panel" style="margin-bottom: 50px; text-align: center;">
+        <div class="panel-header">
+          <h3>Video Explanation</h3>
+        </div>
+        <div class="video-container"
+          style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+          <video controls style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 16px;">
+            <source src="{{ url_for('static', filename='vid/ecc_intro.mp4') }}" type="video/mp4">
+            Your browser does not support the video tag.
+          </video>
+        </div>
+      </div>
+
+      <div class="learn-grid"
+        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 40px; margin-bottom: 60px;">
+        <div class="workflow-panel">
+          <div class="panel-header">
+            <h3>The Trapdoor Function</h3>
+          </div>
+          <p class="panel-desc">Imagine mixing two paint colors. It's easy to mix Blue + Yellow to get Green, but
+            impossible to separate Green back into exactly Blue and Yellow. This is a <strong>Trapdoor
+              Function</strong>: easy one way, hard the other.</p>
+          <div class="visual-analogy"
+            style="height: 150px; background: rgba(0,0,0,0.2); border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+            <!-- Simple CSS shapes for analogy -->
+            <div style="width: 40px; height: 40px; border-radius: 50%; background: #0099ff; margin: 0 10px;"></div>
+            <span style="font-size: 24px; color: #fff;">+</span>
+            <div style="width: 40px; height: 40px; border-radius: 50%; background: #ffff00; margin: 0 10px;"></div>
+            <span style="font-size: 24px; color: #fff;">➜</span>
+            <div
+              style="width: 40px; height: 40px; border-radius: 50%; background: #00ff88; margin: 0 10px; box-shadow: 0 0 20px #00ff88;">
+            </div>
+          </div>
+        </div>
+
+        <div class="workflow-panel">
+          <div class="panel-header">
+            <h3>Why Elliptic Curves?</h3>
+          </div>
+          <p class="panel-desc">ECC uses points on a curve equation $y^2 = x^3 + ax + b$. By "adding" points together
+            billions of times (scalar multiplication), we create a secure key. It's much efficiently than older methods
+            like RSA.</p>
+          <ul style="list-style: none; padding: 0; color: rgba(255,255,255,0.8);">
+            <li style="margin-bottom: 10px;">✅ <strong> Smaller Keys:</strong> 256-bit ECC = 3072-bit RSA</li>
+            <li style="margin-bottom: 10px;">✅ <strong> Faster:</strong> Less computing power needed</li>
+            <li>✅ <strong> Secure:</strong> Used in Blockchain & HTTPS</li>
+          </ul>
+        </div>
+      </div>
+
+      <div style="text-align: center;">
+        <button class="btn-hero" onclick="showPage('keygen')">Next: Generate Your Key</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- KEY GENERATION PAGE -->
+  <section id="keygen" class="page">
+    <div class="container">
+      <h1 class="section-title">Step 1: Key Generation</h1>
+
+      <div class="sim-canvas-container"
+        style="max-width: 100%; height: 600px; margin: 0 auto 40px; position: relative;">
+        <h3 class="sim-section-title">Visualizing $P = k \times G$ (3D)</h3>
+        <!-- 3D Canvas Container -->
+        <div id="keygen-canvas-container" style="width: 100%; height: 100%; border-radius: 16px; overflow: hidden;">
+        </div>
+      </div>
+
+      <div class="workflow-panel" style="max-width: 800px; margin: 0 auto; text-align: center;">
+        <h3>The Math Behind It</h3>
+        <p class="panel-desc">
+          Your <strong>Private Key ($k$)</strong> is just a random large number.<br>
+          Your <strong>Public Key ($P$)</strong> is a point on the curve found by adding the Generator Point ($G$) to
+          itself $k$ times.
+        </p>
+        <div class="keys-display" id="keygen-display" style="display: none;">
+          <div class="key-item">
+            <label>Private Key (d)</label>
+            <div id="priv-key" class="key-value">...</div>
+          </div>
+          <div class="key-item">
+            <label>Public Key (Q)</label>
+            <div id="pub-key" class="key-value">...</div>
+          </div>
+        </div>
+        <button class="btn-primary" onclick="generateKeys()">Generate My Keys</button>
+      </div>
+
+      <div style="text-align: center; margin-top: 40px;">
+        <button class="btn-hero" onclick="showPage('encrypt')">Next: Encrypt a Message</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ENCRYPTION PAGE -->
+  <section id="encrypt" class="page">
+    <div class="container">
+      <h1 class="section-title">Step 2: Encryption</h1>
+
+      <!-- Shared Canvas Container for this page -->
+      <div class="sim-canvas-container"
+        style="max-width: 100%; height: 600px; margin: 0 auto 40px; position: relative;">
+        <h3 class="sim-section-title">Encryption Simulation (3D)</h3>
+        <div id="encrypt-canvas-container" style="width: 100%; height: 100%; border-radius: 16px; overflow: hidden;">
+        </div>
+      </div>
+
+      <div class="encrypt-workflow">
+        <!-- Message Input -->
+        <div class="workflow-panel" style="width: 100%; max-width: 600px; margin: 0 auto;">
+          <div class="panel-header">
+            <div class="step-badge">1</div>
+            <h3>Compose Message</h3>
+          </div>
+          <p class="panel-desc">Enter a message for Alice to send using ECC encryption.</p>
+          <input type="text" id="plaintext" class="text-input" placeholder="Type secret message..." value="Hello ECC!"
+            spellcheck="false">
+          <button class="btn-primary" onclick="startEncryption()" style="width: 100%; margin-top: 15px;">
+            Encrypt & Send
+          </button>
+        </div>
+      </div>
+
+      <!-- Results Area (Initially Hidden) -->
+      <div title="Results" class="workflow-panel" style="margin-top: 40px;">
+        <label class="result-label">Encrypted Output (Ciphertext):</label>
+        <textarea id="ciphertext" class="text-output" readonly
+          placeholder="Ciphertext will appear here after encryption..."></textarea>
+      </div>
+
+      <div style="text-align: center; margin-top: 40px;">
+        <button class="btn-hero" onclick="showPage('decrypt')">Next: Decrypt Message</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- DECRYPTION PAGE -->
+  <section id="decrypt" class="page">
+    <div class="container">
+      <h1 class="section-title">Step 3: Decryption</h1>
+
+      <div class="sim-canvas-container"
+        style="max-width: 100%; height: 600px; margin: 0 auto 40px; position: relative;">
+        <h3 class="sim-section-title">Decryption Simulation (3D)</h3>
+        <!-- Canvas will be moved here by JS -->
+        <div id="decrypt-canvas-container" style="width: 100%; height: 100%; border-radius: 16px; overflow: hidden;">
+        </div>
+      </div>
+
+      <div class="encrypt-workflow">
+        <!-- Decryption Panel -->
+        <div class="workflow-panel" style="width: 100%; max-width: 600px; margin: 0 auto;">
+          <div class="panel-header">
+            <div class="step-badge">2</div>
+            <h3>Decrypt Message</h3>
+          </div>
+          <p class="panel-desc">Bob uses his private key to calculate the shared secret and recover the message.</p>
+          <div style="margin-bottom: 20px;">
+            <label class="result-label">Ciphertext to Decrypt:</label>
+            <!-- We'll repurpose #ciphertext or create a new display/input if needed, but script.js uses currentCiphertext global -->
+            <div id="decrypt-ciphertext-display" class="text-output" style="min-height: 60px;">Wrapper for received
+              ciphertext...</div>
+          </div>
+          <button class="btn-primary" onclick="startDecryption()" style="width: 100%; margin-top: 15px;">
+            Decrypt Message
+          </button>
+        </div>
+      </div>
+
+      <div class="workflow-panel" style="margin-top: 40px;">
+        <div class="panel-header">
+          <h3>Decrypted Result</h3>
+        </div>
+        <textarea id="decrypted" class="text-output" readonly
+          placeholder="Decrypted message appears here..."></textarea>
+      </div>
+
+      <!-- Animation Sections (Usually injected dynamically or shown via JS) -->
+      <div class="animation-section" id="encryption-section-anim" style="display:none;">
+        <!-- kept for script compatibility if needed -->
+        <div id="animation-steps"></div>
+      </div>
+      <div class="animation-section" id="decryption-section" style="display: none; margin-top: 60px;">
+        <h2 class="animation-title">Live Decryption Process Simulation</h2>
+        <div id="decryption-steps" class="animation-steps"></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- SIMULATION PAGE -->
+  <section id="simulation" class="page">
+    <div class="container">
+      <h1 class="section-title">ECC Algorithm Simulator</h1>
+      <p class="simulation-subtitle">Step-by-step visualization of Secp256k1 elliptic curve operations with smooth
+        animations</p>
+
+      <!-- Playback Controls -->
+      <div class="simulation-controls">
+        <button class="control-btn" onclick="simStepBack()" title="Step Backward">
+          <span class="control-icon">⏮</span> Previous
+        </button>
+        <button class="control-btn play-btn" id="play-btn" onclick="simTogglePlay()" title="Play/Pause">
+          <span class="control-icon" id="play-icon">▶</span> Play
+        </button>
+        <button class="control-btn" onclick="simStepForward()" title="Step Forward">
+          Next <span class="control-icon">⏭</span>
+        </button>
+        <button class="control-btn reset-btn" onclick="simReset()" title="Reset Simulation">
+          <span class="control-icon">↻</span> Reset
+        </button>
+        <div class="step-counter">
+          <span id="step-num">0</span> / <span id="step-total">0</span>
+        </div>
+      </div>
+
+      <!-- Main Simulation Area -->
+      <div class="simulation-workspace">
+        <!-- Left: Curve Visualization -->
+        <div class="sim-canvas-container">
+          <h3 class="sim-section-title">Secp256k1 Curve: y² = x³ + 7x (mod p)</h3>
+          <canvas id="simulation-canvas" class="simulation-canvas"></canvas>
+          <div class="curve-legend">
+            <div class="legend-item"><span class="legend-dot"
+                style="background: rgba(0, 217, 255, 0.8)"></span>Generator (G)</div>
+            <div class="legend-item"><span class="legend-dot" style="background: rgba(100, 255, 200, 0.8)"></span>Point
+              A</div>
+            <div class="legend-item"><span class="legend-dot" style="background: rgba(255, 150, 100, 0.8)"></span>Point
+              B</div>
+            <div class="legend-item"><span class="legend-dot" style="background: rgba(200, 150, 255, 0.8)"></span>Result
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Information Panel -->
+        <div class="sim-info-container">
+          <!-- Operation Selector -->
+          <div class="sim-selector">
+            <label>Select Operation:</label>
+            <select id="operation-select" onchange="simChangeOperation(this.value)" class="operation-select">
+              <option value="addition">Point Addition (P + Q)</option>
+              <option value="doubling">Point Doubling (2P)</option>
+              <option value="multiplication">Scalar Multiplication (k·P)</option>
+              <option value="keygen">Key Generation (Alice)</option>
+            </select>
+          </div>
+
+          <!-- Equations Display -->
+          <div class="sim-equations">
+            <h4>Mathematical Steps</h4>
+            <div id="equations-container" class="equations-list">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+
+          <!-- Step Description -->
+          <div class="sim-description">
+            <h4>Current Operation</h4>
+            <div id="step-description" class="description-text">
+              Select an operation and click Next to begin the simulation.
+            </div>
+          </div>
+
+          <!-- Coordinates Display -->
+          <div class="sim-coords">
+            <h4>Point Coordinates</h4>
+            <div class="coords-grid">
+              <div class="coord-item">
+                <label>P:</label>
+                <span id="coord-p" class="coord-value">—</span>
+              </div>
+              <div class="coord-item">
+                <label>Q:</label>
+                <span id="coord-q" class="coord-value">—</span>
+              </div>
+              <div class="coord-item">
+                <label>Result:</label>
+                <span id="coord-result" class="coord-value">—</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Detailed Steps Section -->
+      <div class="simulation-details">
+        <h3>Detailed Computation Log</h3>
+        <div id="computation-log" class="computation-log">
+          <!-- Populated dynamically with computation steps -->
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RESOURCES PAGE -->
+  <section id="resources" class="page">
+    <div class="container">
+      <h1 class="section-title">Resources & References</h1>
+
+      <!-- Added filter/search interface -->
+      <div class="resource-controls">
+        <input type="text" id="resource-search" class="resource-search" placeholder="Search resources..."
+          onkeyup="filterResources()">
+        <div class="resource-filters">
+          <button class="filter-btn active" onclick="filterByType('all')">All</button>
+          <button class="filter-btn" onclick="filterByType('theory')">Theory</button>
+          <button class="filter-btn" onclick="filterByType('implementation')">Implementation</button>
+          <button class="filter-btn" onclick="filterByType('applications')">Applications</button>
+        </div>
+      </div>
+
+      <div class="resources-grid" id="resources-grid">
+        <div class="resource-card" data-type="theory">
+          <h3>Elliptic Curve Basics</h3>
+          <p>Understand the mathematical foundations of elliptic curves and how they form the basis of modern
+            cryptography.</p>
+          <ul>
+            <li>Curve equation: y² = x³ + ax + b (mod p)</li>
+            <li>Secp256k1 parameters and Bitcoin standard</li>
+            <li>Point addition and doubling on curves</li>
+          </ul>
+        </div>
+
+        <div class="resource-card" data-type="implementation">
+          <h3>ECIES Encryption</h3>
+          <p>Elliptic Curve Integrated Encryption Scheme is a public-key encryption method using ECC.</p>
+          <ul>
+            <li>Key generation process with Secp256k1</li>
+            <li>Ephemeral key generation and ECDH</li>
+            <li>Shared secret derivation techniques</li>
+          </ul>
+        </div>
+
+        <div class="resource-card" data-type="implementation">
+          <h3>Our Implementation</h3>
+          <p>Technical details about our ECC system implementation.</p>
+          <ul>
+            <li>Secp256k1 curve parameters in practice</li>
+            <li>Binary scalar multiplication with animations</li>
+            <li>SHA-256 key derivation and XOR encryption</li>
+          </ul>
+        </div>
+
+        <div class="resource-card" data-type="applications">
+          <h3>Real-World Applications</h3>
+          <p>Where ECC is used in modern technology.</p>
+          <ul>
+            <li>Bitcoin & Blockchain (Secp256k1 standard)</li>
+            <li>TLS/SSL Certificates and HTTPS</li>
+            <li>ECDSA Digital Signatures and verification</li>
+          </ul>
+        </div>
+
+        <div class="resource-card" data-type="theory">
+          <h3>Security Benefits</h3>
+          <p>Why ECC is preferred over RSA for modern applications.</p>
+          <ul>
+            <li>Smaller key sizes (256-bit = 2048-bit RSA)</li>
+            <li>Faster computation and lower bandwidth</li>
+            <li>Government standard (NIST) and Bitcoin approved</li>
+          </ul>
+        </div>
+
+        <div class="resource-card" data-type="theory">
+          <h3>Advanced Concepts</h3>
+          <p>Deeper mathematical concepts in elliptic curve cryptography.</p>
+          <ul>
+            <li>Discrete logarithm problem on elliptic curves</li>
+            <li>Finite field arithmetic modulo p</li>
+            <li>Curve cofactor and order considerations</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TEAM PAGE -->
+  <section id="team" class="page" role="region" aria-labelledby="team-title">
+    <div class="container">
+      <h1 id="team-title" class="section-title team-section-title">Our Team</h1>
+
+      <div class="team-grid">
+        <article class="team-card" tabindex="0">
+          <div class="team-avatar" aria-hidden="true">NR</div>
+          <h3 class="team-name">Nour Ragab</h3>
+        </article>
+
+       
+
+        <article class="team-card" tabindex="0">
+          <div class="team-avatar" aria-hidden="true">SE</div>
+          <h3 class="team-name">Shaimaa Eshra</h3>
+        </article>
+
+        <article class="team-card" tabindex="0">
+          <div class="team-avatar" aria-hidden="true">AH</div>
+          <h3 class="team-name">Aya Hady</h3>
+        </article>
+        
+         <article class="team-card" tabindex="0">
+          <div class="team-avatar" aria-hidden="true">JA</div>
+          <h3 class="team-name">Jana Amir</h3>
+        </article>
+
+        <article class="team-card" tabindex="0">
+          <div class="team-avatar" aria-hidden="true">SA</div>
+          <h3 class="team-name">Shahd Azzam</h3>
+        </article>
+      </div>
+
+      <div class="team-mission">
+        <h2>Our Mission</h2>
+        <p>To make advanced ECC accessible, understandable, and interactive for everyone.</p>
+      </div>
+    </div>
+  </section>
+
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+
+</html>
