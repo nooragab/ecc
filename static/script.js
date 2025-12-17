@@ -12,6 +12,30 @@ const scenes = {
   decrypt: null
 };
 
+// UI Helpers
+function clearSteps(containerId) {
+  const container = document.getElementById(containerId);
+  if (container) container.innerHTML = "";
+}
+
+function addLiveStep(containerId, stepNum, title, desc) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  const card = document.createElement("div");
+  card.className = "live-step-card";
+  card.innerHTML = `
+    <div class="live-step-header">
+      <div class="live-step-num">${stepNum}</div>
+      <div class="live-step-title">${title}</div>
+    </div>
+    <div class="live-step-desc">${desc}</div>
+  `;
+  container.appendChild(card);
+  // Auto scroll to bottom
+  card.scrollIntoView({ behavior: 'smooth', block: 'end' });
+}
+
 // Helper: Sleep function for animations
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -35,6 +59,7 @@ function showPage(pageName) {
     if (pageName === "keygen") initKeyGenScene();
     if (pageName === "encrypt") initEncryptScene();
     if (pageName === "decrypt") initDecryptScene();
+    if (pageName === "resources") initSourcesScene();
   }, 100);
 }
 
@@ -65,7 +90,7 @@ class ECCScene3D {
 
     // Scene
     this.scene = new THREE.Scene();
-    this.scene.fog = new THREE.FogExp2(0x0a0f1e, 0.02);
+    // this.scene.fog = new THREE.FogExp2(0x0a0f1e, 0.02); // Removed fog for transparency
 
     // Camera
     this.camera = new THREE.PerspectiveCamera(75, this.width / this.height, 0.1, 1000);
@@ -178,7 +203,6 @@ class ECCScene3D {
     labelDiv.style.pointerEvents = 'none';
     labelDiv.style.border = `1px solid ${color}`;
 
-
     this.container.appendChild(labelDiv);
     this.labels.push({ div: labelDiv, position: position });
     return labelDiv;
@@ -195,7 +219,6 @@ class ECCScene3D {
 
       label.div.style.left = `${x}px`;
       label.div.style.top = `${y}px`;
-
 
       // Fade out if behind camera or far
       if (pos.z > 1) label.div.style.opacity = 0;
@@ -351,6 +374,60 @@ function initDecryptScene() {
   }
 }
 
+function initSourcesScene() {
+  if (scenes.sources) return;
+  const container = document.getElementById("sources-3d-container");
+  if (!container) return;
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
+  camera.position.z = 30;
+
+  const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+  renderer.setSize(container.clientWidth, container.clientHeight);
+  container.appendChild(renderer.domElement);
+
+  // Create "Network" of Knowledge
+  const geometry = new THREE.IcosahedronGeometry(10, 2);
+  const wireframe = new THREE.WireframeGeometry(geometry);
+
+  const lineMaterial = new THREE.LineBasicMaterial({
+    color: 0x00d9ff,
+    transparent: true,
+    opacity: 0.15
+  });
+
+  const lines = new THREE.LineSegments(wireframe, lineMaterial);
+  scene.add(lines);
+
+  // Add floating particles around
+  const particlesGeo = new THREE.BufferGeometry();
+  const pCount = 200;
+  const pPos = new Float32Array(pCount * 3);
+  for (let i = 0; i < pCount * 3; i++) {
+    pPos[i] = (Math.random() - 0.5) * 40;
+  }
+  particlesGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+  const pMat = new THREE.PointsMaterial({
+    size: 0.2,
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.5
+  });
+  const particles = new THREE.Points(particlesGeo, pMat);
+  scene.add(particles);
+
+  function animate() {
+    requestAnimationFrame(animate);
+    lines.rotation.y += 0.002;
+    lines.rotation.x += 0.001;
+    particles.rotation.y -= 0.001;
+    renderer.render(scene, camera);
+  }
+  animate();
+  scenes.sources = { scene, renderer };
+}
+
 // ============ LOGIC AND ANIMATION FLOWS ============
 
 // --- KEY GENERATION FLOW ---
@@ -359,8 +436,11 @@ async function generateKeys() {
   if (!scene) return;
   scene.clearElements();
 
+  clearSteps("keygen-steps");
+
   try {
     // Step 1: Visual - Key Generation Start
+    addLiveStep("keygen-steps", 1, "Initialize", "Selecting the Generator Point G on the curve.");
     scene.addLabel("Step 1: Selecting Generator Point G", new THREE.Vector3(0, 4, 0), "#00d9ff");
     const G = scene.addPoint(-2, -1.5, 0x00d9ff, 1); // Generator
     scene.addLabel("G", new THREE.Vector3(-2, -2.2, 0), "#00d9ff");
@@ -378,9 +458,11 @@ async function generateKeys() {
     scene.addLabel("G", new THREE.Vector3(-2, -2.2, 0), "#00d9ff");
 
     scene.addLabel("Step 2: Private Key (k) selected", new THREE.Vector3(0, 4, 0), "#ffffff");
+    addLiveStep("keygen-steps", 2, "Private Key Selection", `Selected random private key k = ${currentPrivateKey.substring(0, 8)}... `);
     await sleep(1500);
 
     // Step 3: Animation of Scalar Multiplication
+    addLiveStep("keygen-steps", 3, "Scalar Multiplication", "Computing P = k * G by 'adding' G to itself k times.");
     scene.addLabel("Step 3: Computing P = k * G", new THREE.Vector3(0, 3, 0), "#00ff88");
 
     let currentPos = new THREE.Vector3(-2, -1.5, 0);
@@ -399,6 +481,7 @@ async function generateKeys() {
     }
 
     // Final Point
+    addLiveStep("keygen-steps", 4, "Public Key Reference", "The resulting point P is your Public Key.");
     scene.addLabel("Step 4: Public Key Generated!", new THREE.Vector3(0, 5, 0), "#00ff88");
     const pubKeyPoint = scene.addPoint(currentPos.x, currentPos.y, 0xffffff, 1.5);
     scene.addLabel("Public Key (P)", new THREE.Vector3(currentPos.x, currentPos.y - 0.8, 0), "#ffffff");
@@ -426,20 +509,24 @@ async function startEncryption() {
   const scene = scenes.encrypt;
   if (!scene) return;
   scene.clearElements();
+  clearSteps("encrypt-steps");
 
   // Step 1: Map Message to Point
+  addLiveStep("encrypt-steps", 1, "Map Message", "Mapping your text message to a point M on the curve.");
   scene.addLabel("Step 1: Mapping Message to Curve Point (M)", new THREE.Vector3(0, 4, 0), "#ff00ff");
   const M = scene.addPoint(-1, 2, 0xff00ff, 1.2);
   scene.addLabel("Message (M)", new THREE.Vector3(-1, 1.3, 0), "#ff00ff");
   await sleep(2000);
 
   // Step 2: Receiver's Public Key
+  addLiveStep("encrypt-steps", 2, "Get Public Key", "Using Alice's Public Key (P) for encryption.");
   scene.addLabel("Step 2: Retrieve Public Key (P)", new THREE.Vector3(0, 4, 0), "#00d9ff");
   const P = scene.addPoint(3, -2, 0x00d9ff, 1);
   scene.addLabel("Public Key (P)", new THREE.Vector3(3, -2.8, 0), "#00d9ff");
   await sleep(2000);
 
   // Step 3: Generate Ephemeral Key k and C1
+  addLiveStep("encrypt-steps", 3, "Ephemeral Key k", "Generating random k and computing part 1 of ciphertext: C1 = k * G.");
   scene.addLabel("Step 3: Generate Random k & Calculate C1 = k*G", new THREE.Vector3(0, 4, 0), "#ffffff");
   const G = scene.addPoint(-2, -1.5, 0xaaaaaa, 0.8); // G reference
   scene.addLabel("G", new THREE.Vector3(-2, -2.2, 0), "#aaaaaa");
@@ -452,6 +539,7 @@ async function startEncryption() {
   await sleep(2000);
 
   // Step 4: Calculate Shared Secret S
+  addLiveStep("encrypt-steps", 4, "Shared Secret", "Computing Secret S = k * P (using Public Key).");
   scene.addLabel("Step 4: Calculate Shared Secret S = k*P", new THREE.Vector3(0, 4, 0), "#ffff00");
   const S_pos = new THREE.Vector3(1, -1, 0); // Hypothetical S
   await scene.tracePath(P.position, S_pos, 0xffff00);
@@ -460,6 +548,7 @@ async function startEncryption() {
   await sleep(2000);
 
   // Step 5: Encrypt M -> C2
+  addLiveStep("encrypt-steps", 5, "Create Ciphertext", "Masking the message point M with Secret S: C2 = M + S.");
   scene.addLabel("Step 5: Encrypt M: C2 = M + S", new THREE.Vector3(0, 4, 0), "#ff00ff");
   // Move S and M towards each other to form C2
   const C2_pos = new THREE.Vector3(2, 2, 0);
@@ -504,8 +593,10 @@ async function startDecryption() {
   const scene = scenes.decrypt;
   if (!scene) return;
   scene.clearElements();
+  clearSteps("decrypt-steps");
 
   // Show C1 and C2
+  addLiveStep("decrypt-steps", 1, "Receive Ciphertext", "Bob receives the pair (C1, C2).");
   scene.addLabel("Step 1: Received Ciphertext (C1, C2)", new THREE.Vector3(0, 4, 0), "#ffffff");
   const C1_pos = new THREE.Vector3(-3, 1, 0);
   const C2_pos = new THREE.Vector3(2, 2, 0);
@@ -518,6 +609,7 @@ async function startDecryption() {
   await sleep(2000);
 
   // Compute S from C1
+  addLiveStep("decrypt-steps", 2, "Recover Shared Secret", "Bob computes S = d * C1 using his Private Key d.");
   scene.addLabel("Step 2: Compute Secret S = d * C1", new THREE.Vector3(0, 4, 0), "#ffff00");
   const S_pos = new THREE.Vector3(1, -1, 0);
   await scene.tracePath(C1_pos, S_pos, 0xffff00);
@@ -526,6 +618,7 @@ async function startDecryption() {
   await sleep(2000);
 
   // Decrypt C2 -> M
+  addLiveStep("decrypt-steps", 3, "Decrypt Message", "Bob unmasks the message: M = C2 - S.");
   scene.addLabel("Step 3: Decrypt M = C2 - S", new THREE.Vector3(0, 4, 0), "#00ff88");
   const M_pos = new THREE.Vector3(-1, 2, 0); // Original Message pos
 
