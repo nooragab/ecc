@@ -21,7 +21,6 @@ function clearSteps(containerId) {
 function addLiveStep(containerId, stepNum, title, desc) {
   const container = document.getElementById(containerId);
   if (!container) return;
-
   const card = document.createElement("div");
   card.className = "live-step-card";
   card.innerHTML = `
@@ -32,28 +31,21 @@ function addLiveStep(containerId, stepNum, title, desc) {
     <div class="live-step-desc">${desc}</div>
   `;
   container.appendChild(card);
-  // Auto scroll to bottom
-  card.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  // Scroll within the steps panel, not the whole page
+  container.scrollTop = container.scrollHeight;
 }
 
-// Helper: Sleep function for animations
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // ============ PAGE NAVIGATION ============
 function showPage(pageName) {
   const pages = document.querySelectorAll(".page")
   const navLinks = document.querySelectorAll(".nav-link")
-
   pages.forEach((page) => page.classList.remove("active"))
   navLinks.forEach((link) => link.classList.remove("active"))
-
   document.getElementById(pageName).classList.add("active")
-
-  // Find the link that corresponds to this page
-  const activeLink = Array.from(navLinks).find(link => link.getAttribute('onclick').includes(pageName));
+  const activeLink = Array.from(navLinks).find(link => link.getAttribute('onclick') && link.getAttribute('onclick').includes(pageName));
   if (activeLink) activeLink.classList.add("active");
-
-  // Initialize specific 3D scenes when entering pages
   setTimeout(() => {
     if (pageName === "home") initHeroScene();
     if (pageName === "keygen") initKeyGenScene();
@@ -69,17 +61,44 @@ document.addEventListener('DOMContentLoaded', () => {
   if (toggleBtn) {
     toggleBtn.addEventListener("click", () => {
       bgAnimationEnabled = !bgAnimationEnabled;
-      toggleBtn.classList.toggle("disabled");
       toggleBtn.style.opacity = bgAnimationEnabled ? "1" : "0.5";
     });
   }
-  // Start Hero initially
   initHeroScene();
+  initBgCanvas();
 });
+
+// Background canvas — subtle dot grid
+function initBgCanvas() {
+  const canvas = document.getElementById('bg-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  function drawGrid() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const spacing = 32;
+    ctx.fillStyle = 'rgba(45,58,30,0.25)';
+    for (let x = 0; x < canvas.width; x += spacing) {
+      for (let y = 0; y < canvas.height; y += spacing) {
+        ctx.beginPath();
+        ctx.arc(x, y, 1, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+  drawGrid();
+  window.addEventListener('resize', () => {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    drawGrid();
+  });
+}
 
 // ============ 3D SCENE CLASS ============
 class ECCScene3D {
-  constructor(containerId, colorTheme = 0x00d9ff) {
+  constructor(containerId, colorTheme = 0x2d3a1e) {
     this.container = document.getElementById(containerId);
     if (!this.container) return;
 
@@ -88,40 +107,38 @@ class ECCScene3D {
     this.theme = colorTheme;
     this.labels = [];
 
-    // Scene
     this.scene = new THREE.Scene();
-    // this.scene.fog = new THREE.FogExp2(0x0a0f1e, 0.02); // Removed fog for transparency
+    this.scene.background = new THREE.Color(0xf5f2eb);
 
-    // Camera
-    this.camera = new THREE.PerspectiveCamera(75, this.width / this.height, 0.1, 1000);
+    this.camera = new THREE.PerspectiveCamera(70, this.width / this.height, 0.1, 1000);
     this.camera.position.z = 12;
     this.camera.position.y = 0;
 
-    // Renderer
-    this.renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setSize(this.width, this.height);
     this.renderer.setPixelRatio(window.devicePixelRatio);
-    this.container.innerHTML = ''; // Clear previous
+    this.renderer.shadowMap.enabled = true;
+    this.container.innerHTML = '';
     this.container.appendChild(this.renderer.domElement);
 
-    // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    // Lighting — warm ambient
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
     this.scene.add(ambientLight);
-    const pointLight = new THREE.PointLight(this.theme, 2, 50);
-    pointLight.position.set(5, 5, 10);
-    this.scene.add(pointLight);
+    const dirLight = new THREE.DirectionalLight(0xfff8e8, 1.5);
+    dirLight.position.set(10, 10, 10);
+    dirLight.castShadow = true;
+    this.scene.add(dirLight);
+    const fillLight = new THREE.PointLight(this.theme, 1, 40);
+    fillLight.position.set(-5, 5, 8);
+    this.scene.add(fillLight);
 
-    // Groups
     this.curveGroup = new THREE.Group();
     this.scene.add(this.curveGroup);
     this.elementsGroup = new THREE.Group();
     this.scene.add(this.elementsGroup);
 
-    // Interaction vars
     this.mouseX = 0;
     this.mouseY = 0;
-    this.targetRotationX = 0;
-    this.targetRotationY = 0;
 
     window.addEventListener('resize', () => this.onResize());
     this.container.addEventListener('mousemove', (e) => this.onMouseMove(e));
@@ -147,13 +164,11 @@ class ECCScene3D {
   }
 
   initCurve() {
-    // Draw ECC curve y^2 = x^3 + 7
-    const points = [];
-    const scale = 1.5;
-    // We draw two segments: y > 0 and y < 0
+    // ECC curve y^2 = x^3 + 7 in olive/dark green
     const topPoints = [];
     const botPoints = [];
-    for (let x = -1.9; x <= 4; x += 0.05) {
+    const scale = 1.5;
+    for (let x = -1.9; x <= 4; x += 0.04) {
       const y2 = Math.pow(x, 3) + 7;
       if (y2 >= 0) {
         const y = Math.sqrt(y2);
@@ -162,47 +177,47 @@ class ECCScene3D {
       }
     }
 
-    const material = new THREE.LineBasicMaterial({ color: this.theme, transparent: true, opacity: 0.6, linewidth: 2 });
+    const curveMat = new THREE.LineBasicMaterial({ color: this.theme, transparent: true, opacity: 0.8, linewidth: 3 });
+    this.curveGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(topPoints), curveMat));
+    this.curveGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(botPoints), curveMat));
 
-    const topGeo = new THREE.BufferGeometry().setFromPoints(topPoints);
-    const botGeo = new THREE.BufferGeometry().setFromPoints(botPoints);
+    // Axes
+    const axisMat = new THREE.LineBasicMaterial({ color: 0xc8b87a, transparent: true, opacity: 0.4 });
+    const xAxis = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-10, 0, 0), new THREE.Vector3(10, 0, 0)]);
+    const yAxis = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, -10, 0), new THREE.Vector3(0, 10, 0)]);
+    this.scene.add(new THREE.Line(xAxis, axisMat));
+    this.scene.add(new THREE.Line(yAxis, axisMat));
 
-    this.curveGroup.add(new THREE.Line(topGeo, material));
-    this.curveGroup.add(new THREE.Line(botGeo, material));
-
-    // Grid
-    const gridHelper = new THREE.GridHelper(30, 30, 0x333333, 0x111111);
+    // Light grid
+    const gridHelper = new THREE.GridHelper(30, 30, 0xddd9ce, 0xe8e4dc);
     gridHelper.rotation.x = Math.PI / 2;
     gridHelper.position.z = -1;
     this.scene.add(gridHelper);
   }
 
-  addPoint(x, y, color = 0xffffff, scale = 1) {
-    const geometry = new THREE.SphereGeometry(0.3 * scale, 32, 32);
-    const material = new THREE.MeshPhongMaterial({ color: color, emissive: color, emissiveIntensity: 0.6 });
+  addPoint(x, y, color = 0x2d3a1e, scale = 1) {
+    const geometry = new THREE.SphereGeometry(0.28 * scale, 32, 32);
+    const material = new THREE.MeshPhongMaterial({
+      color: color,
+      emissive: color,
+      emissiveIntensity: 0.2,
+      shininess: 80,
+      specular: 0xffffff
+    });
     const sphere = new THREE.Mesh(geometry, material);
     sphere.position.set(x, y, 0);
+    sphere.castShadow = true;
     this.elementsGroup.add(sphere);
-
-    // Pulse animation data
     sphere.userData = { initialScale: scale, time: Math.random() * 100 };
     return sphere;
   }
 
-  // Create a floating HTML label
-  addLabel(text, position, color = '#ffffff') {
+  addLabel(text, position, color = '#2d3a1e') {
     const labelDiv = document.createElement('div');
     labelDiv.className = 'scene-label';
     labelDiv.textContent = text;
     labelDiv.style.color = color;
     labelDiv.style.position = 'absolute';
-    labelDiv.style.padding = '4px 8px';
-    labelDiv.style.background = 'rgba(0,0,0,0.7)';
-    labelDiv.style.borderRadius = '4px';
-    labelDiv.style.fontSize = '12px';
-    labelDiv.style.pointerEvents = 'none';
-    labelDiv.style.border = `1px solid ${color}`;
-
     this.container.appendChild(labelDiv);
     this.labels.push({ div: labelDiv, position: position });
     return labelDiv;
@@ -211,157 +226,296 @@ class ECCScene3D {
   updateLabels() {
     this.labels.forEach(label => {
       const pos = label.position.clone();
-      // Project 3D position to 2D screen
       pos.project(this.camera);
-      // Convert to CSS coordinates
       const x = (pos.x * .5 + .5) * this.width;
       const y = (pos.y * -.5 + .5) * this.height;
-
       label.div.style.left = `${x}px`;
       label.div.style.top = `${y}px`;
-
-      // Fade out if behind camera or far
-      if (pos.z > 1) label.div.style.opacity = 0;
-      else label.div.style.opacity = 1;
+      label.div.style.opacity = pos.z > 1 ? 0 : 1;
     });
   }
 
   clearElements() {
-    // Remove all children from elements group
     while (this.elementsGroup.children.length > 0) {
       const child = this.elementsGroup.children[0];
       if (child.geometry) child.geometry.dispose();
       this.elementsGroup.remove(child);
     }
-    // Remove labels
     this.labels.forEach(l => l.div.remove());
     this.labels = [];
   }
 
-  // New Animation: Trace a path between two points
-  async tracePath(start, end, color = 0xffffff) {
-    const points = [];
-    points.push(start);
-    // Create detailed cubic bezier or simple line
-    // Simple lerp for now
-    const curve = new THREE.LineCurve3(start, end);
-    const geometry = new THREE.TubeGeometry(curve, 20, 0.05, 8, false);
+  async tracePath(start, end, color = 0x2d3a1e) {
+    // Arc through a midpoint lifted above the straight line
+    const mid = new THREE.Vector3(
+      (start.x + end.x) / 2,
+      (start.y + end.y) / 2 + 1.8,
+      (start.z + end.z) / 2
+    );
+    const curve = new THREE.QuadraticBezierCurve3(start, mid, end);
+    const geometry = new THREE.TubeGeometry(curve, 40, 0.05, 8, false);
     const material = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0 });
     const mesh = new THREE.Mesh(geometry, material);
     this.elementsGroup.add(mesh);
-
-    // Animate opacity
-    for (let i = 0; i <= 20; i++) {
-      material.opacity = i / 20;
-      await sleep(20);
+    // Animate a travelling dot along the arc
+    const dotGeo = new THREE.SphereGeometry(0.18, 16, 16);
+    const dotMat = new THREE.MeshPhongMaterial({ color: color, emissive: color, emissiveIntensity: 0.6 });
+    const dot = new THREE.Mesh(dotGeo, dotMat);
+    this.elementsGroup.add(dot);
+    const steps = 40;
+    for (let i = 0; i <= steps; i++) {
+      material.opacity = (i / steps) * 0.85;
+      const pt = curve.getPoint(i / steps);
+      dot.position.set(pt.x, pt.y, pt.z);
+      await sleep(18);
     }
+    this.elementsGroup.remove(dot);
+    dotGeo.dispose(); dotMat.dispose();
     return mesh;
   }
 
   animate() {
     requestAnimationFrame(this.animate);
-
-    // Camera slight movement
-    this.targetRotationX = this.mouseX * 0.3;
-    this.targetRotationY = this.mouseY * 0.3;
-
-    this.camera.position.x += (this.mouseX * 5 - this.camera.position.x) * 0.05;
+    this.camera.position.x += (this.mouseX * 4 - this.camera.position.x) * 0.05;
     this.camera.position.y += (this.mouseY * 2 - this.camera.position.y) * 0.05;
     this.camera.lookAt(new THREE.Vector3(0, 0, 0));
-
     this.elementsGroup.children.forEach(mesh => {
       if (mesh.userData && mesh.userData.time !== undefined) {
-        mesh.userData.time += 0.05;
-        const s = mesh.userData.initialScale + Math.sin(mesh.userData.time) * 0.1;
+        mesh.userData.time += 0.04;
+        const s = mesh.userData.initialScale + Math.sin(mesh.userData.time) * 0.08;
         mesh.scale.set(s, s, s);
       }
     });
-
     this.updateLabels();
     this.renderer.render(this.scene, this.camera);
   }
 }
 
-// ============ SPECIFIC SCENE INIT ============
-
+// ============ HERO SCENE — ECC curve + orbiting spheres, no bounding box ============
 function initHeroScene() {
-  if (scenes.hero) return;
   const container = document.getElementById("hero-3d-container");
   if (!container) return;
 
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
-  camera.position.z = 25;
-
-  const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-  renderer.setSize(container.clientWidth, container.clientHeight);
-  container.appendChild(renderer.domElement);
-
-  // Particles
-  const particlesGeometry = new THREE.BufferGeometry();
-  const count = 3000;
-  const posArray = new Float32Array(count * 3);
-  const colorsArray = new Float32Array(count * 3);
-
-  for (let i = 0; i < count * 3; i += 3) {
-    const r = Math.random() * 25;
-    const theta = Math.random() * 2 * Math.PI;
-    posArray[i] = r * Math.cos(theta);
-    posArray[i + 1] = (Math.random() - 0.5) * 5 + Math.sin(r * 0.5) * 2;
-    posArray[i + 2] = r * Math.sin(theta);
-
-    colorsArray[i] = 0.0;
-    colorsArray[i + 1] = 0.5 + Math.random() * 0.5;
-    colorsArray[i + 2] = 1.0;
+  // If already built, just resize to current container dimensions and return
+  if (scenes.hero) {
+    const { renderer, camera } = scenes.hero;
+    requestAnimationFrame(() => {
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+      if (w > 0 && h > 0) {
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        renderer.setSize(w, h);
+      }
+    });
+    return;
   }
 
-  particlesGeometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-  particlesGeometry.setAttribute('color', new THREE.BufferAttribute(colorsArray, 3));
+  // Transparent renderer — no background, blends into page
+  const scene = new THREE.Scene();
+  // no scene.background → transparent
 
-  const material = new THREE.PointsMaterial({
-    size: 0.15,
-    vertexColors: true,
-    transparent: true,
-    opacity: 0.8,
-    blending: THREE.AdditiveBlending
+  const initAspect = (container.clientWidth || window.innerWidth * 0.5) / (container.clientHeight || window.innerHeight * 0.85);
+  const camera = new THREE.PerspectiveCamera(55, initAspect, 0.1, 1000);
+  camera.position.set(-1, 0, 16);   // shifted left so curve feels closer to text
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setClearColor(0x000000, 0);   // fully transparent
+
+  // Use a safe fallback size in case container is still 0 at this moment
+  const initW = container.clientWidth  || window.innerWidth  * 0.5;
+  const initH = container.clientHeight || window.innerHeight * 0.85;
+  renderer.setSize(initW, initH);
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.shadowMap.enabled = true;
+  container.appendChild(renderer.domElement);
+
+  // Correct the size after the browser has painted the layout
+  requestAnimationFrame(() => {
+    const w = container.clientWidth;
+    const h = container.clientHeight;
+    if (w > 0 && h > 0) {
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    }
   });
 
-  const particlesMesh = new THREE.Points(particlesGeometry, material);
-  scene.add(particlesMesh);
+  // ---- Lighting ----
+  scene.add(new THREE.AmbientLight(0xfff8e8, 1.8));
+  const dirLight = new THREE.DirectionalLight(0xffffff, 2.5);
+  dirLight.position.set(8, 12, 10);
+  dirLight.castShadow = true;
+  scene.add(dirLight);
+  const rimLight = new THREE.PointLight(0x8fa86a, 2.5, 80);
+  rimLight.position.set(-8, -4, 6);
+  scene.add(rimLight);
+  const accentLight = new THREE.PointLight(0xb8a055, 1.8, 60);
+  accentLight.position.set(6, 6, 4);
+  scene.add(accentLight);
 
-  // Interaction
-  let mouseX = 0;
-  let mouseY = 0;
-  document.addEventListener('mousemove', (event) => {
-    mouseX = (event.clientX / window.innerWidth) * 2 - 1;
-    mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
+  // ---- ECC Curve y² = x³ + 7 — large, centred in view ----
+  const cScale = 2.4;   // bigger than before
+  const topPts = [], botPts = [];
+  for (let x = -1.9; x <= 4; x += 0.025) {
+    const y2 = x * x * x + 7;
+    if (y2 >= 0) {
+      const y = Math.sqrt(y2);
+      topPts.push(new THREE.Vector3(x * cScale - 1, y * cScale, 0));
+      botPts.push(new THREE.Vector3(x * cScale - 1, -y * cScale, 0));
+    }
+  }
+  const curveMat = new THREE.LineBasicMaterial({ color: 0x2d3a1e, transparent: true, opacity: 0.85, linewidth: 2 });
+  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(topPts), curveMat));
+  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(botPts), curveMat));
+
+  // ---- Named points on the curve with glowing spheres ----
+  const namedPts = [
+    { x: -1.3, sign:  1, color: 0x2d3a1e, label: 'G', r: 0.28 },
+    { x:  0.5, sign:  1, color: 0x4a5e30, label: 'P', r: 0.22 },
+    { x:  2.0, sign: -1, color: 0xb8a055, label: 'Q', r: 0.22 },
+    { x:  3.2, sign:  1, color: 0x8fa86a, label: 'R', r: 0.20 },
+    { x: -0.5, sign: -1, color: 0xc8b87a, label: '',  r: 0.16 },
+    { x:  1.2, sign:  1, color: 0x4a5e30, label: '',  r: 0.16 },
+  ];
+  const dotMeshes = namedPts.map(({ x, sign, color, r }) => {
+    const y2 = x * x * x + 7;
+    if (y2 < 0) return null;
+    const y = Math.sqrt(y2) * sign;
+    const geo = new THREE.SphereGeometry(r, 28, 28);
+    const mat = new THREE.MeshPhongMaterial({ color, emissive: color, emissiveIntensity: 0.35, shininess: 120, specular: 0xffffff });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x * cScale - 1, y * cScale, 0);
+    mesh.castShadow = true;
+    scene.add(mesh);
+    return { mesh, baseZ: 0, phase: Math.random() * Math.PI * 2 };
+  }).filter(Boolean);
+
+  // ---- Animated arc between G and P (point addition) ----
+  const arcGroup = new THREE.Group();
+  scene.add(arcGroup);
+  function buildArc(from, to, color, opacity) {
+    const mid = new THREE.Vector3((from.x + to.x) / 2, Math.max(from.y, to.y) + 2.5, 0);
+    const curve = new THREE.QuadraticBezierCurve3(from, mid, to);
+    const geo = new THREE.TubeGeometry(curve, 40, 0.05, 8, false);
+    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity });
+    return new THREE.Mesh(geo, mat);
+  }
+  const gPos = new THREE.Vector3(-1.3 * cScale - 1, Math.sqrt(Math.pow(-1.3,3)+7) * cScale, 0);
+  const pPos = new THREE.Vector3(0.5  * cScale - 1, Math.sqrt(Math.pow(0.5, 3)+7) * cScale, 0);
+  const qPos = new THREE.Vector3(2.0  * cScale - 1, -Math.sqrt(Math.pow(2.0,3)+7) * cScale, 0);
+  arcGroup.add(buildArc(gPos, pPos, 0x4a5e30, 0.35));
+  arcGroup.add(buildArc(pPos, qPos, 0xb8a055, 0.30));
+
+  // ---- Orbiting sphere cluster — bigger radius, no background ----
+  const orbitGroup = new THREE.Group();
+  orbitGroup.position.set(3.5, 0, -4);   // pushed right so it hugs the right edge
+  scene.add(orbitGroup);
+
+  const colors = [0xddd9ce, 0x8fa86a, 0x4a5e30, 0x2d3a1e, 0xb8a055, 0xe8e4dc, 0xc8b87a];
+  const spheres = [];
+  for (let i = 0; i < 90; i++) {
+    const r = 3.5 + Math.random() * 3.5;
+    const theta = Math.random() * Math.PI * 2;
+    const phi   = Math.acos(2 * Math.random() - 1);
+    const geo = new THREE.SphereGeometry(0.25 + Math.random() * 0.55, 20, 20);
+    const mat = new THREE.MeshPhongMaterial({
+      color: colors[Math.floor(Math.random() * colors.length)],
+      shininess: 70 + Math.random() * 80,
+      specular: 0xffffff
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(
+      r * Math.sin(phi) * Math.cos(theta),
+      r * Math.sin(phi) * Math.sin(theta),
+      r * Math.cos(phi)
+    );
+    mesh.castShadow = true;
+    orbitGroup.add(mesh);
+    spheres.push({ mesh, phase: Math.random() * Math.PI * 2, speed: 0.4 + Math.random() * 0.7 });
+  }
+
+  // ---- Mouse tracking ----
+  let mouseX = 0, mouseY = 0;
+  document.addEventListener('mousemove', e => {
+    mouseX = (e.clientX / window.innerWidth)  * 2 - 1;
+    mouseY = -(e.clientY / window.innerHeight) * 2 + 1;
   });
 
+  // ---- Travelling dot along the curve ----
+  const travGeo = new THREE.SphereGeometry(0.18, 20, 20);
+  const travMat = new THREE.MeshPhongMaterial({ color: 0xb8a055, emissive: 0xb8a055, emissiveIntensity: 0.7, shininess: 140 });
+  const travDot = new THREE.Mesh(travGeo, travMat);
+  scene.add(travDot);
+
+  let t = 0;
   function animate() {
-    if (!bgAnimationEnabled) return;
     requestAnimationFrame(animate);
-    particlesMesh.rotation.y += 0.001 + mouseX * 0.002;
-    particlesMesh.rotation.x += mouseY * 0.002;
+    t += 0.012;   // faster overall
+
+    // Orbit cluster — faster spin, mouse tilt
+    orbitGroup.rotation.y = t * 0.55 + mouseX * 0.45;
+    orbitGroup.rotation.x = mouseY * 0.28;
+
+    // Curve subtle breathe toward camera
+    curveMat.opacity = 0.7 + 0.15 * Math.sin(t * 0.6);
+
+    // Sphere pulsing — more energetic
+    spheres.forEach(({ mesh, phase, speed }) => {
+      mesh.scale.setScalar(1 + 0.12 * Math.sin(t * speed + phase));
+    });
+
+    // Named dots — float up/down + z wobble
+    dotMeshes.forEach(({ mesh, phase }, i) => {
+      mesh.position.z = 0.4 * Math.sin(t * 1.1 + phase);
+      mesh.scale.setScalar(1 + 0.18 * Math.sin(t * 0.9 + phase));
+    });
+
+    // Travelling dot walks along top half of curve
+    const tParam = (t * 0.18) % 1;
+    const txRaw = -1.9 + tParam * 5.9;   // -1.9 → 4.0
+    const ty2 = txRaw * txRaw * txRaw + 7;
+    if (ty2 >= 0) {
+      travDot.position.set(txRaw * cScale - 1, Math.sqrt(ty2) * cScale, 0.3);
+      travDot.visible = true;
+    } else {
+      travDot.visible = false;
+    }
+
+    // Gentle arc flicker
+    arcGroup.children.forEach((m, i) => {
+      m.material.opacity = 0.2 + 0.18 * Math.sin(t * 0.7 + i * 1.2);
+    });
+
+    // Camera slight drift — more alive
+    camera.position.x = -1 + Math.sin(t * 0.15) * 0.6 + mouseX * 0.8;
+    camera.position.y =      Math.cos(t * 0.12) * 0.4 + mouseY * 0.5;
+    camera.lookAt(0, 0, 0);
+
     renderer.render(scene, camera);
   }
   animate();
-  scenes.hero = { scene, renderer };
+  scenes.hero = { scene, renderer, camera };
+
+  window.addEventListener('resize', () => {
+    camera.aspect = container.clientWidth / container.clientHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(container.clientWidth, container.clientHeight);
+  });
 }
 
 function initKeyGenScene() {
-  // Only init if empty
   const container = document.getElementById("keygen-canvas-container");
   if (container && container.children.length === 0) {
-    scenes.keygen = new ECCScene3D("keygen-canvas-container", 0x00ff88);
+    scenes.keygen = new ECCScene3D("keygen-canvas-container", 0x2d7a3a);
     scenes.keygen.camera.position.z = 10;
-    // Draw initial static Curve if needed or just wait for generation
   }
 }
 
 function initEncryptScene() {
   const container = document.getElementById("encrypt-canvas-container");
   if (container && container.children.length === 0) {
-    scenes.encrypt = new ECCScene3D("encrypt-canvas-container", 0xff00ff);
+    scenes.encrypt = new ECCScene3D("encrypt-canvas-container", 0x4a5e30);
     scenes.encrypt.camera.position.z = 10;
   }
 }
@@ -369,7 +523,7 @@ function initEncryptScene() {
 function initDecryptScene() {
   const container = document.getElementById("decrypt-canvas-container");
   if (container && container.children.length === 0) {
-    scenes.decrypt = new ECCScene3D("decrypt-canvas-container", 0xffaa00);
+    scenes.decrypt = new ECCScene3D("decrypt-canvas-container", 0xb8a055);
     scenes.decrypt.camera.position.z = 10;
   }
 }
@@ -378,117 +532,96 @@ function initSourcesScene() {
   if (scenes.sources) return;
   const container = document.getElementById("sources-3d-container");
   if (!container) return;
-
   const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xf5f2eb);
   const camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
   camera.position.z = 30;
-
-  const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(container.clientWidth, container.clientHeight);
   container.appendChild(renderer.domElement);
 
-  // Create "Network" of Knowledge
   const geometry = new THREE.IcosahedronGeometry(10, 2);
   const wireframe = new THREE.WireframeGeometry(geometry);
-
-  const lineMaterial = new THREE.LineBasicMaterial({
-    color: 0x00d9ff,
-    transparent: true,
-    opacity: 0.15
-  });
-
+  const lineMaterial = new THREE.LineBasicMaterial({ color: 0x4a5e30, transparent: true, opacity: 0.12 });
   const lines = new THREE.LineSegments(wireframe, lineMaterial);
   scene.add(lines);
-
-  // Add floating particles around
-  const particlesGeo = new THREE.BufferGeometry();
-  const pCount = 200;
-  const pPos = new Float32Array(pCount * 3);
-  for (let i = 0; i < pCount * 3; i++) {
-    pPos[i] = (Math.random() - 0.5) * 40;
-  }
-  particlesGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
-  const pMat = new THREE.PointsMaterial({
-    size: 0.2,
-    color: 0xffffff,
-    transparent: true,
-    opacity: 0.5
-  });
-  const particles = new THREE.Points(particlesGeo, pMat);
-  scene.add(particles);
 
   function animate() {
     requestAnimationFrame(animate);
     lines.rotation.y += 0.002;
     lines.rotation.x += 0.001;
-    particles.rotation.y -= 0.001;
     renderer.render(scene, camera);
   }
   animate();
   scenes.sources = { scene, renderer };
 }
 
-// ============ LOGIC AND ANIMATION FLOWS ============
+// ============ KEY GENERATION FLOW ============
+// Helper: real point on y^2 = x^3 + 7 (with scale 1.5 for 3D scene)
+// Returns {x, y} on y^2 = x^3 + 7 scaled for the 3D scene (scale 1.5)
+function curvePoint(x, sign = 1) {
+  const y2 = x * x * x + 7;
+  if (y2 < 0) return { x: 0, y: 0 };
+  return { x: x * 1.5, y: Math.sqrt(y2) * 1.5 * sign };
+}
 
-// --- KEY GENERATION FLOW ---
+// Fixed meaningful points on the curve — plain {x,y}, convert to Vector3 inline
+const CP = {
+  G:  curvePoint(-1.3, 1),   // Generator
+  P1: curvePoint( 0.5, 1),
+  P2: curvePoint( 1.5,-1),
+  P3: curvePoint( 2.2, 1),
+  P4: curvePoint( 3.0,-1),
+  P5: curvePoint(-0.5, 1),
+  P6: curvePoint( 1.0, 1),
+  M:  curvePoint( 0.0, 1),   // Message point
+  PK: curvePoint( 2.5, 1),   // Public key destination
+  C1: curvePoint(-0.8,-1),   // Ciphertext C1
+  C2: curvePoint( 1.8, 1),   // Ciphertext C2
+  S:  curvePoint( 0.8,-1),   // Shared secret
+};
+// Shorthand: convert CP entry to THREE.Vector3
+function v3(p) { return new THREE.Vector3(p.x, p.y, 0); }
+
 async function generateKeys() {
   const scene = scenes.keygen;
   if (!scene) return;
   scene.clearElements();
-
   clearSteps("keygen-steps");
 
   try {
-    // Step 1: Visual - Key Generation Start
-    addLiveStep("keygen-steps", 1, "Initialize", "Selecting the Generator Point G on the curve.");
-    scene.addLabel("Step 1: Selecting Generator Point G", new THREE.Vector3(0, 4, 0), "#00d9ff");
-    const G = scene.addPoint(-2, -1.5, 0x00d9ff, 1); // Generator
-    scene.addLabel("G", new THREE.Vector3(-2, -2.2, 0), "#00d9ff");
-    await sleep(1500);
+    // Step 1 — Show Generator Point G on the curve
+    addLiveStep("keygen-steps", 1, "Generator Point G", "G is a fixed base point on the secp256k1 curve y² = x³ + 7.");
+    const Gpt = scene.addPoint(CP.G.x, CP.G.y, 0x2d3a1e, 1.2);
+    scene.addLabel("G (Generator)", new THREE.Vector3(CP.G.x, CP.G.y + 0.7, 0), "#2d3a1e");
+    await sleep(1800);
 
-    // Step 2: Call Backend
     const response = await fetch("/generate_keys", { method: "POST" });
     const data = await response.json();
     currentPrivateKey = data.private_key;
     currentPublicKey = data.public_key;
 
-    // Visual - Private Key Selection
-    scene.clearElements();
-    scene.addPoint(-2, -1.5, 0x00d9ff, 1); // Redraw sum
-    scene.addLabel("G", new THREE.Vector3(-2, -2.2, 0), "#00d9ff");
+    addLiveStep("keygen-steps", 2, "Private Key k", `Random k = ${currentPrivateKey.substring(0, 10)}… chosen secretly.`);
+    await sleep(1600);
 
-    scene.addLabel("Step 2: Private Key (k) selected", new THREE.Vector3(0, 4, 0), "#ffffff");
-    addLiveStep("keygen-steps", 2, "Private Key Selection", `Selected random private key k = ${currentPrivateKey.substring(0, 8)}... `);
-    await sleep(1500);
+    addLiveStep("keygen-steps", 3, "Scalar Multiplication", "P = k × G — repeatedly doubling & adding G along the curve.");
 
-    // Step 3: Animation of Scalar Multiplication
-    addLiveStep("keygen-steps", 3, "Scalar Multiplication", "Computing P = k * G by 'adding' G to itself k times.");
-    scene.addLabel("Step 3: Computing P = k * G", new THREE.Vector3(0, 3, 0), "#00ff88");
-
-    let currentPos = new THREE.Vector3(-2, -1.5, 0);
-    for (let i = 0; i < 8; i++) {
-      // Random "hop" on the curve
-      const nextX = (Math.random() * 5) - 2.5;
-      const nextY = (Math.random() > 0.5 ? 1 : -1) * Math.sqrt(Math.pow(nextX, 3) + 7) * 1.5; // Scale match
-      const nextPos = new THREE.Vector3(nextX, nextY, 0);
-
-      // Trace line
-      await scene.tracePath(currentPos, nextPos, 0x00ff88);
-      const p = scene.addPoint(nextPos.x, nextPos.y, 0x00ff88, 0.5);
-      currentPos = nextPos;
-      await sleep(300);
-      if (i < 7) scene.elementsGroup.remove(p); // Remove intermediate points, keep path
+    const hops = [CP.G, CP.P1, CP.P2, CP.P3, CP.P5, CP.P6, CP.PK];
+    for (let i = 1; i < hops.length; i++) {
+      await scene.tracePath(v3(hops[i-1]), v3(hops[i]), 0x8fa86a);
+      const isLast = i === hops.length - 1;
+      const pt = scene.addPoint(hops[i].x, hops[i].y, isLast ? 0x2d3a1e : 0x8fa86a, isLast ? 1.6 : 0.45);
+      if (!isLast) {
+        await sleep(220);
+        scene.elementsGroup.remove(pt);
+      }
     }
 
-    // Final Point
-    addLiveStep("keygen-steps", 4, "Public Key Reference", "The resulting point P is your Public Key.");
-    scene.addLabel("Step 4: Public Key Generated!", new THREE.Vector3(0, 5, 0), "#00ff88");
-    const pubKeyPoint = scene.addPoint(currentPos.x, currentPos.y, 0xffffff, 1.5);
-    scene.addLabel("Public Key (P)", new THREE.Vector3(currentPos.x, currentPos.y - 0.8, 0), "#ffffff");
+    addLiveStep("keygen-steps", 4, "Public Key P", "P is your public key — the endpoint after k doublings of G.");
+    scene.addLabel("Public Key P", new THREE.Vector3(CP.PK.x, CP.PK.y + 0.7, 0), "#2d3a1e");
 
-    // Update UI
     document.getElementById("priv-key").textContent = currentPrivateKey.substring(0, 30) + "...";
-    document.getElementById("pub-key").textContent = currentPublicKey.substring(0, 30) + "...";
+    document.getElementById("pub-key").textContent  = currentPublicKey.substring(0, 30) + "...";
     document.getElementById("keygen-display").style.display = "block";
 
   } catch (e) {
@@ -497,74 +630,67 @@ async function generateKeys() {
   }
 }
 
-// --- ENCRYPTION FLOW ---
+// ============ ENCRYPTION FLOW ============
 async function startEncryption() {
-  const plaintext = document.getElementById("plaintext").value.trim()
+  const plaintext = document.getElementById("plaintext").value.trim();
   if (!plaintext || !currentPublicKey) {
-    alert("Please enter message and generate keys.");
+    alert("Please enter a message and generate keys first.");
     return;
   }
   showPage('encrypt');
-
   const scene = scenes.encrypt;
   if (!scene) return;
   scene.clearElements();
   clearSteps("encrypt-steps");
 
-  // Step 1: Map Message to Point
-  addLiveStep("encrypt-steps", 1, "Map Message", "Mapping your text message to a point M on the curve.");
-  scene.addLabel("Step 1: Mapping Message to Curve Point (M)", new THREE.Vector3(0, 4, 0), "#ff00ff");
-  const M = scene.addPoint(-1, 2, 0xff00ff, 1.2);
-  scene.addLabel("Message (M)", new THREE.Vector3(-1, 1.3, 0), "#ff00ff");
-  await sleep(2000);
+  // Step 1 — Message point M on the curve
+  addLiveStep("encrypt-steps", 1, "Map Message → M", "The message is mapped to a point M on the elliptic curve.");
+  const M = scene.addPoint(CP.M.x, CP.M.y, 0x4a5e30, 1.2);
+  scene.addLabel("M (Message)", new THREE.Vector3(CP.M.x, CP.M.y + 0.7, 0), "#4a5e30");
+  await sleep(1800);
 
-  // Step 2: Receiver's Public Key
-  addLiveStep("encrypt-steps", 2, "Get Public Key", "Using Alice's Public Key (P) for encryption.");
-  scene.addLabel("Step 2: Retrieve Public Key (P)", new THREE.Vector3(0, 4, 0), "#00d9ff");
-  const P = scene.addPoint(3, -2, 0x00d9ff, 1);
-  scene.addLabel("Public Key (P)", new THREE.Vector3(3, -2.8, 0), "#00d9ff");
-  await sleep(2000);
+  // Step 2 — Public key P (already on curve from keygen)
+  addLiveStep("encrypt-steps", 2, "Public Key P", "Sender uses recipient's public key P on the curve.");
+  const P = scene.addPoint(CP.PK.x, CP.PK.y, 0x2d3a1e, 1.1);
+  scene.addLabel("P (Public Key)", new THREE.Vector3(CP.PK.x, CP.PK.y + 0.7, 0), "#2d3a1e");
+  await sleep(1800);
 
-  // Step 3: Generate Ephemeral Key k and C1
-  addLiveStep("encrypt-steps", 3, "Ephemeral Key k", "Generating random k and computing part 1 of ciphertext: C1 = k * G.");
-  scene.addLabel("Step 3: Generate Random k & Calculate C1 = k*G", new THREE.Vector3(0, 4, 0), "#ffffff");
-  const G = scene.addPoint(-2, -1.5, 0xaaaaaa, 0.8); // G reference
-  scene.addLabel("G", new THREE.Vector3(-2, -2.2, 0), "#aaaaaa");
+  // Step 3 — Ephemeral key: show G then hop to C1 along the curve
+  addLiveStep("encrypt-steps", 3, "C₁ = k × G", "Random k chosen. C₁ is computed by scalar mult of G.");
+  const G = scene.addPoint(CP.G.x, CP.G.y, 0xb8a055, 0.85);
+  scene.addLabel("G", new THREE.Vector3(CP.G.x, CP.G.y + 0.7, 0), "#b8a055");
+  await sleep(800);
+  // Hop G → P1 → C1 (all on curve)
+  await scene.tracePath(v3(CP.G), v3(CP.P1), 0xb8a055);
+  const midHop = scene.addPoint(CP.P1.x, CP.P1.y, 0xb8a055, 0.4);
+  await scene.tracePath(v3(CP.P1), v3(CP.C1), 0xb8a055);
+  scene.elementsGroup.remove(midHop);
+  const C1 = scene.addPoint(CP.C1.x, CP.C1.y, 0xb8a055, 1.1);
+  scene.addLabel("C₁", new THREE.Vector3(CP.C1.x, CP.C1.y - 0.7, 0), "#b8a055");
+  await sleep(1800);
 
-  // Animate path G -> C1
-  const C1_pos = new THREE.Vector3(-3, 1, 0);
-  await scene.tracePath(G.position, C1_pos, 0xffffff);
-  const C1 = scene.addPoint(C1_pos.x, C1_pos.y, 0xffffff, 1);
-  scene.addLabel("C1", new THREE.Vector3(C1_pos.x, C1_pos.y + 0.5, 0), "#ffffff");
-  await sleep(2000);
+  // Step 4 — Shared secret S = k × P
+  addLiveStep("encrypt-steps", 4, "S = k × P", "Shared secret S computed from public key P via scalar mult.");
+  await scene.tracePath(v3(CP.PK), v3(CP.P2), 0x8fa86a);
+  const sHop = scene.addPoint(CP.P2.x, CP.P2.y, 0x8fa86a, 0.4);
+  await scene.tracePath(v3(CP.P2), v3(CP.S), 0x8fa86a);
+  scene.elementsGroup.remove(sHop);
+  const S = scene.addPoint(CP.S.x, CP.S.y, 0x8fa86a, 1.0);
+  scene.addLabel("S (Secret)", new THREE.Vector3(CP.S.x, CP.S.y - 0.7, 0), "#8fa86a");
+  await sleep(1800);
 
-  // Step 4: Calculate Shared Secret S
-  addLiveStep("encrypt-steps", 4, "Shared Secret", "Computing Secret S = k * P (using Public Key).");
-  scene.addLabel("Step 4: Calculate Shared Secret S = k*P", new THREE.Vector3(0, 4, 0), "#ffff00");
-  const S_pos = new THREE.Vector3(1, -1, 0); // Hypothetical S
-  await scene.tracePath(P.position, S_pos, 0xffff00);
-  const S = scene.addPoint(S_pos.x, S_pos.y, 0xffff00, 0.8);
-  scene.addLabel("Secret S", new THREE.Vector3(1, -1.6, 0), "#ffff00");
-  await sleep(2000);
-
-  // Step 5: Encrypt M -> C2
-  addLiveStep("encrypt-steps", 5, "Create Ciphertext", "Masking the message point M with Secret S: C2 = M + S.");
-  scene.addLabel("Step 5: Encrypt M: C2 = M + S", new THREE.Vector3(0, 4, 0), "#ff00ff");
-  // Move S and M towards each other to form C2
-  const C2_pos = new THREE.Vector3(2, 2, 0);
-
+  // Step 5 — C2 = M + S (point addition on the curve)
+  addLiveStep("encrypt-steps", 5, "C₂ = M + S", "Ciphertext C₂ is M masked with the shared secret S.");
   await Promise.all([
-    scene.tracePath(M.position, C2_pos, 0xff00ff),
-    scene.tracePath(S.position, C2_pos, 0xffff00)
+    scene.tracePath(v3(CP.M), v3(CP.C2), 0x4a5e30),
+    scene.tracePath(v3(CP.S), v3(CP.C2), 0x8fa86a)
   ]);
-
   scene.elementsGroup.remove(M);
   scene.elementsGroup.remove(S);
-  const C2 = scene.addPoint(C2_pos.x, C2_pos.y, 0xff00ff, 1.5); // Cipher point
-  scene.addLabel("C2 (Encrypted)", new THREE.Vector3(C2_pos.x, C2_pos.y + 0.6, 0), "#ff00ff");
-  await sleep(1500);
+  const C2 = scene.addPoint(CP.C2.x, CP.C2.y, 0x2d3a1e, 1.5);
+  scene.addLabel("C₂ (Cipher)", new THREE.Vector3(CP.C2.x, CP.C2.y + 0.7, 0), "#2d3a1e");
+  await sleep(1400);
 
-  // Do actual API call
   try {
     const response = await fetch("/encrypt", {
       method: "POST",
@@ -574,65 +700,51 @@ async function startEncryption() {
     const data = await response.json();
     currentCiphertext = data.ciphertext;
     document.getElementById("ciphertext").value = currentCiphertext;
-    document.getElementById("ciphertext").parentElement.style.opacity = "1";
-
-    scene.addLabel("Encryption Complete! (C1, C2) sent.", new THREE.Vector3(0, 5, 0), "#00ff88");
-
+    document.getElementById("ciphertext").classList.add("result-shown");
   } catch (e) {
     alert("Encryption Error");
   }
 }
 
-// --- DECRYPTION FLOW ---
+// ============ DECRYPTION FLOW ============
 async function startDecryption() {
   if (!currentCiphertext || !currentPrivateKey) {
-    alert("No ciphertext or private key found.");
+    alert("No ciphertext or private key found. Please encrypt a message first.");
     return;
   }
-
   const scene = scenes.decrypt;
   if (!scene) return;
   scene.clearElements();
   clearSteps("decrypt-steps");
 
-  // Show C1 and C2
-  addLiveStep("decrypt-steps", 1, "Receive Ciphertext", "Bob receives the pair (C1, C2).");
-  scene.addLabel("Step 1: Received Ciphertext (C1, C2)", new THREE.Vector3(0, 4, 0), "#ffffff");
-  const C1_pos = new THREE.Vector3(-3, 1, 0);
-  const C2_pos = new THREE.Vector3(2, 2, 0);
+  // Step 1 — Show received ciphertext pair (C1, C2) — same curve points as encryption
+  addLiveStep("decrypt-steps", 1, "Receive (C₁, C₂)", "Bob receives the ciphertext pair — both points on the curve.");
+  const C1 = scene.addPoint(CP.C1.x, CP.C1.y, 0xb8a055, 1.1);
+  scene.addLabel("C₁", new THREE.Vector3(CP.C1.x, CP.C1.y - 0.7, 0), "#b8a055");
+  const C2 = scene.addPoint(CP.C2.x, CP.C2.y, 0x4a5e30, 1.3);
+  scene.addLabel("C₂", new THREE.Vector3(CP.C2.x, CP.C2.y + 0.7, 0), "#4a5e30");
+  await sleep(1800);
 
-  const C1 = scene.addPoint(C1_pos.x, C1_pos.y, 0xffffff, 1);
-  scene.addLabel("C1", new THREE.Vector3(C1_pos.x, C1_pos.y + 0.6, 0), "#ffffff");
+  // Step 2 — Recover shared secret: S = d × C1 (scalar mult using private key d)
+  addLiveStep("decrypt-steps", 2, "S = d × C₁", "Bob uses private key d to scalar-multiply C₁ and recover S.");
+  await scene.tracePath(v3(CP.C1), v3(CP.P3), 0x8fa86a);
+  const sHop = scene.addPoint(CP.P3.x, CP.P3.y, 0x8fa86a, 0.4);
+  await scene.tracePath(v3(CP.P3), v3(CP.S), 0x8fa86a);
+  scene.elementsGroup.remove(sHop);
+  const S = scene.addPoint(CP.S.x, CP.S.y, 0x8fa86a, 1.1);
+  scene.addLabel("S (Secret)", new THREE.Vector3(CP.S.x, CP.S.y - 0.7, 0), "#8fa86a");
+  await sleep(1800);
 
-  const C2 = scene.addPoint(C2_pos.x, C2_pos.y, 0xff00ff, 1.3);
-  scene.addLabel("C2", new THREE.Vector3(C2_pos.x, C2_pos.y + 0.6, 0), "#ff00ff");
-  await sleep(2000);
-
-  // Compute S from C1
-  addLiveStep("decrypt-steps", 2, "Recover Shared Secret", "Bob computes S = d * C1 using his Private Key d.");
-  scene.addLabel("Step 2: Compute Secret S = d * C1", new THREE.Vector3(0, 4, 0), "#ffff00");
-  const S_pos = new THREE.Vector3(1, -1, 0);
-  await scene.tracePath(C1_pos, S_pos, 0xffff00);
-  const S = scene.addPoint(S_pos.x, S_pos.y, 0xffff00, 1);
-  scene.addLabel("Secret S", new THREE.Vector3(S_pos.x, S_pos.y - 0.6, 0), "#ffff00");
-  await sleep(2000);
-
-  // Decrypt C2 -> M
-  addLiveStep("decrypt-steps", 3, "Decrypt Message", "Bob unmasks the message: M = C2 - S.");
-  scene.addLabel("Step 3: Decrypt M = C2 - S", new THREE.Vector3(0, 4, 0), "#00ff88");
-  const M_pos = new THREE.Vector3(-1, 2, 0); // Original Message pos
-
-  await scene.tracePath(C2_pos, M_pos, 0xff00ff);
-  await scene.tracePath(S_pos, M_pos, 0xffff00); // Inverse addition visual
-
+  // Step 3 — Recover M = C2 − S (point subtraction on the curve)
+  addLiveStep("decrypt-steps", 3, "M = C₂ − S", "Bob subtracts S from C₂ to recover the original message point M.");
+  await scene.tracePath(v3(CP.C2), v3(CP.M), 0x4a5e30);
+  await scene.tracePath(v3(CP.S), v3(CP.M), 0x8fa86a);
   scene.elementsGroup.remove(C2);
   scene.elementsGroup.remove(S);
-
-  const M = scene.addPoint(M_pos.x, M_pos.y, 0x00ff88, 1.5);
-  scene.addLabel("Decrypted Message (M)", new THREE.Vector3(M_pos.x, M_pos.y + 0.6, 0), "#00ff88");
+  const Mpt = scene.addPoint(CP.M.x, CP.M.y, 0x2d3a1e, 1.6);
+  scene.addLabel("M (Message ✓)", new THREE.Vector3(CP.M.x, CP.M.y + 0.7, 0), "#2d3a1e");
   await sleep(1500);
 
-  // API Call
   try {
     const response = await fetch("/decrypt", {
       method: "POST",
@@ -641,10 +753,15 @@ async function startDecryption() {
     });
     const data = await response.json();
     document.getElementById("decrypted").value = data.plaintext;
-
-    scene.addLabel("Decryption Successful!", new THREE.Vector3(0, 5, 0), "#00ff88");
-
+    document.getElementById("decrypted").classList.add("result-shown");
   } catch (e) {
     alert("Decryption failed");
   }
 }
+
+// ============ SIMULATION PAGE (kept for compatibility) ============
+function simStepBack() {}
+function simTogglePlay() {}
+function simStepForward() {}
+function simReset() {}
+function simChangeOperation(val) {}
