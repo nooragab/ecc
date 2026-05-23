@@ -193,7 +193,3 @@ This project is built for **educational purposes**. The XOR stream cipher used h
 - [Guide to ECC — Hankerson, Menezes, Vanstone](https://link.springer.com/book/10.1007/b97644) — The definitive textbook
 
 ---
-
-## Team
-
-Built by **Nour Ragab, Shaimaa Eshra, Aya Hady, Jana Amir, and Shahd Azzam** as part of an advanced cryptography course project.
